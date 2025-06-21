@@ -6,3 +6,4 @@ Flask==3.0.3
 Flask-Cors==4.0.1
 # ... outras bibliotecas ...
 gunicorn
+python-dotenv

@@ -1,3 +1,4 @@
 flask
 boto3
-gunicorn
+python-dotenv
+gunicorn  <-- ESSENCIAL para produção. app.run() não é usado no deploy.

@@ -1,54 +1,51 @@
-import os
-import boto3
 from flask import Flask, jsonify
+from flask_cors import CORS
+import boto3
+import os
+import urllib.parse
 
 app = Flask(__name__)
+CORS(app)
 
-# --- Seu código existente da API pode estar aqui ---
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_REGION = 'sa-east-1'
+BUCKET_NAME = 'empresa-ibovespa-dividendosinvest'
+PREFIX = 'AWS S3 - BANCO DE DADOS API - LOGOS/'
 
-@app.route('/testar-s3')
-def testar_conexao_s3():
-    """
-    Endpoint de diagnóstico para verificar a conexão com o S3.
-    """
-    print("Iniciando teste de conexão com o S3...")
-    
-    # Pega o nome do bucket a partir das variáveis de ambiente
-    bucket_name = os.environ.get('S3_BUCKET_NAME')
-    if not bucket_name:
-        print("Erro: A variável de ambiente S3_BUCKET_NAME não foi definida.")
-        return jsonify({
-            "sucesso": False,
-            "etapa": "Configuração",
-            "mensagem": "A variável de ambiente 'S3_BUCKET_NAME' não foi encontrada."
-        }), 500
+s3 = boto3.client(
+    's3',
+    region_name=AWS_REGION,
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+)
 
+S3_BASE_URL = f"https://{BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/"
+
+@app.route('/api/logos', methods=['GET'])
+def list_logos():
     try:
-        # Tenta criar um cliente S3. Isso testa as credenciais.
-        print(f"Tentando criar cliente S3 para a região {os.environ.get('AWS_DEFAULT_REGION')}...")
-        s3_client = boto3.client('s3')
-        
-        # Tenta listar os objetos no bucket. Isso testa as permissões e se o bucket existe.
-        print(f"Tentando listar objetos no bucket: {bucket_name}")
-        s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1) # MaxKeys=1 para ser mais rápido
-        
-        print("Sucesso! Conexão com S3 funcionando.")
-        # Se os comandos acima funcionarem, a conexão está OK.
-        return jsonify({
-            "sucesso": True,
-            "mensagem": "Conexão com o Amazon S3 e acesso ao bucket foram bem-sucedidos!",
-            "bucket_verificado": bucket_name
-        })
+        response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=PREFIX)
+
+        if 'Contents' not in response:
+            return jsonify([])
+
+        logos = []
+        for obj in response['Contents']:
+            key = obj['Key']
+            filename = key[len(PREFIX):]
+            url_encoded_key = urllib.parse.quote(key)
+            url = f"{S3_BASE_URL}{url_encoded_key}"
+
+            logos.append({
+                'filename': filename,
+                'url': url
+            })
+
+        return jsonify(logos)
 
     except Exception as e:
-        # Se ocorrer qualquer erro, captura e retorna uma mensagem detalhada.
-        print(f"Falha no teste de conexão com o S3: {e}")
-        return jsonify({
-            "sucesso": False,
-            "etapa": "Execução",
-            "mensagem": "Ocorreu um erro ao tentar se conectar ao S3.",
-            "detalhe_do_erro": str(e) # Converte o erro em texto
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
-# --- O resto do seu código da API ---
-# --- O resto do seu código da API ---
+if __name__ == '__main__':
+    app.run(debug=True)

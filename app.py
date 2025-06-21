@@ -1,6 +1,6 @@
-# app.py
 import os
 from flask import Flask, jsonify
+from flask_cors import CORS  # Importado para permitir a comunicação com o front-end
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import ClientError
@@ -9,13 +9,15 @@ from botocore.exceptions import ClientError
 load_dotenv()
 
 app = Flask(__name__)
+# Essencial: Habilita o CORS para que seu front-end React possa chamar esta API
+CORS(app) 
 
-# --- Configuração do Cliente S3 ---
+# --- Configuração do Cliente S3 (a melhor versão, mais segura) ---
 # Boto3 vai procurar as credenciais nas variáveis de ambiente.
-# Verifique se AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY e AWS_REGION estão configuradas no seu ambiente de deploy.
 s3_client = boto3.client(
     's3',
-    region_name=os.getenv('AWS_REGION', 'us-east-1') # Use a região do seu bucket
+    # Garante que a região seja lida do ambiente, com um padrão seguro
+    region_name=os.getenv('AWS_REGION', 'us-east-1') 
 )
 
 BUCKET_NAME = 'empresa-ibovespa-dividendosinvest'
@@ -38,7 +40,6 @@ def get_logos():
         
         # 2. Gera uma URL assinada (Presigned URL) para cada objeto
         for obj in objects:
-            # Parâmetros para gerar a URL
             presigned_url_params = {
                 'Bucket': BUCKET_NAME,
                 'Key': obj['Key']
@@ -54,7 +55,7 @@ def get_logos():
             file_name = obj['Key'].split('/')[-1]
             
             logos_data.append({
-                'id': obj['ETag'], # ETag é um hash único do objeto
+                'id': obj['ETag'], # ETag é um identificador único do objeto
                 'src': url,
                 'alt': f"Logo {file_name}"
             })
@@ -62,11 +63,9 @@ def get_logos():
         return jsonify(logos_data)
 
     except ClientError as e:
-        # Erro específico do cliente AWS (ex: credenciais inválidas, bucket não encontrado)
         print(f"Erro do Boto3: {e}")
         return jsonify({"message": "Erro ao contatar o serviço de armazenamento."}), 500
     except Exception as e:
-        # Outros erros genéricos
         print(f"Erro inesperado: {e}")
         return jsonify({"message": "Erro interno do servidor."}), 500
 
